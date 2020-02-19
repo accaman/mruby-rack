@@ -22,6 +22,117 @@ module Kernel
   end
 end
 
+module FileUtils
+  def remove_trailing_slash(dir)   #:nodoc:
+    dir == '/' ? dir : dir.chomp(?/)
+  end
+  # private_module_function :remove_trailing_slash
+  module_function :remove_trailing_slash
+
+  #
+  # Creates one or more directories.
+  #
+  #   FileUtils.mkdir 'test'
+  #   FileUtils.mkdir %w(tmp data)
+  #   FileUtils.mkdir 'notexist', noop: true  # Does not really create.
+  #   FileUtils.mkdir 'tmp', mode: 0700
+  #
+  def mkdir(list, opts = {})
+    mode    = opts[:mode]
+    noop    = opts[:noop]
+    verbose = opts[:verbose]
+
+    list = fu_list(list)
+    fu_output_message "mkdir #{mode ? ('-m %03o ' % mode) : ''}#{list.join ' '}" if verbose
+    return if noop
+
+    list.each do |dir|
+      fu_mkdir dir, mode
+    end
+  end
+  module_function :mkdir
+
+  def fu_mkdir(path, mode)   #:nodoc:
+    path = remove_trailing_slash(path)
+    if mode
+      Dir.mkdir path, mode
+      File.chmod mode, path
+    else
+      Dir.mkdir path
+    end
+  end
+  # private_module_function :fu_mkdir
+  module_function :fu_mkdir
+
+  #
+  # Updates modification time (mtime) and access time (atime) of file(s) in
+  # +list+.  Files are created if they don't exist.
+  #
+  #   FileUtils.touch 'timestamp'
+  #   FileUtils.touch Dir.glob('*.c');  system 'make'
+  #
+  def touch(list, opts = {})
+    noop     = opts[:noop]
+    verbose  = opts[:verbose]
+    mtime    = opts[:mtime]
+    nocreate = opts[:nocreate]
+
+    list = fu_list(list)
+    t = mtime
+    if verbose
+      fu_output_message "touch #{nocreate ? '-c ' : ''}#{t ? t.strftime('-t %Y%m%d%H%M.%S ') : ''}#{list.join ' '}"
+    end
+    return if noop
+    list.each do |path|
+      created = nocreate
+      begin
+        File.utime(t, t, path)
+      rescue Errno::ENOENT
+        raise if created
+        File.open(path, 'a') {
+          ;
+        }
+        created = true
+        retry if t
+      end
+    end
+  end
+  module_function :touch
+
+  def fu_list(arg)   #:nodoc:
+    [arg].flatten.map {|path| File.path(path) }
+  end
+  # private_module_function :fu_list
+  module_function :fu_list
+
+  def fu_output_message(msg)   #:nodoc:
+    # output = @fileutils_output if defined?(@fileutils_output)
+    # output ||= $stderr
+    # if defined?(@fileutils_label)
+    #   msg = @fileutils_label + msg
+    # end
+    # output.puts msg
+
+    $stderr.puts msg
+  end
+  # private_module_function :fu_output_message
+  module_function :fu_output_message
+end
+
+class File # stub
+  def self.write(path, string)
+    File.open(path, "w") do |file|
+      file.write(string)
+    end
+  end
+
+  def self.utime(_, _, *filename)
+    filename.each do |file|
+      File.open(file, "w") {}
+    end
+  end
+end
+
 class MTest::Unit::TestCase
   # NOTE: MTest::Unit::TestCase#assert_raise ignores subclassing chain, so copy this from
   # https://github.com/seattlerb/minitest/blob/master/lib/minitest/assertions.rb
